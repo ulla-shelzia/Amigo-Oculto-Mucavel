@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gerar sorteio</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:680px;margin:20px auto;padding:0 16px;line-height:1.5}
+textarea{width:100%;height:130px;font:inherit;padding:8px}
+button{font:inherit;padding:10px 16px;margin:8px 0}
+pre{background:#eee;padding:10px;overflow:auto;white-space:pre-wrap;word-break:break-all;max-height:260px}
+</style>
+</head>
+<body>
+<h1>Gerar sorteio</h1>
+<p><b>Usa só no teu computador. Não publiques este ficheiro no GitHub.</b></p>
+<h3>1. Nomes (um por linha)</h3>
+<textarea id="nomes" placeholder="Ana&#10;Carlos&#10;Maria"></textarea>
+<h3>2. Casais ou pessoas que não se podem tirar (um grupo por linha, separados por +)</h3>
+<textarea id="casais" placeholder="Ana + Carlos"></textarea>
+<br>
+<button onclick="sortear()">Sortear</button>
+<div id="out" hidden>
+  <h2>PIN de cada pessoa (envia em privado)</h2>
+  <pre id="pins"></pre>
+  <h2>Conteúdo do ficheiro dados.js</h2>
+  <button onclick="copiar()">Copiar</button>
+  <pre id="js"></pre>
+</div>
+<script>
+const enc=new TextEncoder(),b64=u=>btoa(String.fromCharCode(...u)),K=s=>s.trim().toLowerCase();
+const rnd=n=>crypto.getRandomValues(new Uint32Array(1))[0]%n;
+const val=id=>document.getElementById(id).value;
+async function cifrar(pin,txt){
+  const s=crypto.getRandomValues(new Uint8Array(16)),i=crypto.getRandomValues(new Uint8Array(12));
+  const km=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveKey']);
+  const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:s,iterations:100000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt']);
+  return {s:b64(s),i:b64(i),c:b64(new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:i},k,enc.encode(txt))))};
+}
+async function sortear(){
+  const nomes=[...new Set(val('nomes').split('\n').map(x=>x.trim()).filter(Boolean))];
+  if(nomes.length<3)return alert('Precisas de pelo menos 3 nomes diferentes.');
+  const ex={};
+  val('casais').split('\n').forEach(l=>{const g=l.split('+').map(K).filter(Boolean);g.forEach(a=>{ex[a]=ex[a]||new Set();g.forEach(b=>ex[a].add(b))})});
+  let r=null;
+  for(let t=0;t<20000&&!r;t++){
+    const a=[...nomes];
+    for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}
+    if(nomes.every((n,i)=>K(n)!==K(a[i])&&!(ex[K(n)]&&ex[K(n)].has(K(a[i])))))r=a;
+  }
+  if(!r)return alert('Não foi possível sortear com estas regras. Reduz os grupos.');
+  const dados=[],pins=[];
+  for(let k=0;k<nomes.length;k++){
+    const pin=String(rnd(10000)).padStart(4,'0');
+    dados.push({n:nomes[k],...await cifrar(pin,r[k])});
+    pins.push([nomes[k],pin]);
+  }
+  dados.sort((x,y)=>x.n.localeCompare(y.n));
+  pins.sort((x,y)=>x[0].localeCompare(y[0]));
+  document.getElementById('pins').textContent=pins.map(p=>p[0]+': '+p[1]).join('\n');
+  document.getElementById('js').textContent='const DADOS='+JSON.stringify(dados,null,1)+';';
+  document.getElementById('out').hidden=false;
+}
+function copiar(){navigator.clipboard.writeText(document.getElementById('js').textContent).then(()=>alert('Copiado!'))}
+</script>
+</body>
+</html>

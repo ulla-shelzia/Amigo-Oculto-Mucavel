@@ -1,0 +1,1 @@
+for(let i=0;i<16;i++){const e=document.createElement('span');e.className='neve';e.textContent='❄';e.style.cssText=`left:${Math.random()*100}vw;font-size:${10+Math.random()*14}px;animation-duration:${8+Math.random()*10}s;animation-delay:-${Math.random()*10}s`;document.body.append(e)}

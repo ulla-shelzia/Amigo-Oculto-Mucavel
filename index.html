@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f4c2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Amigo Oculto</title>
+<link rel="stylesheet" href="estilo.css">
+<style>
+#modal{position:fixed;inset:0;background:rgba(5,25,15,.93);display:flex;align-items:center;justify-content:center;padding:20px;z-index:5;overflow:auto}
+#modal[hidden],[hidden]{display:none!important}
+#modal .card{width:100%;max-width:380px;text-align:center}
+.nome{font-size:1.4rem;font-weight:700;margin:6px 0}
+#pin{font-size:1.6rem;letter-spacing:.5em;text-align:center;width:9em}
+#res{font-family:Georgia,serif;font-size:2.3rem;font-weight:700;color:var(--vermelho);margin:10px 0;word-break:break-word;animation:surge .5s ease-out}
+@keyframes surge{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){#res{animation:none}}
+</style>
+</head>
+<body>
+<div class="fita"></div>
+<header><h1>🎄 Amigo Oculto</h1><p>Toca no teu nome para descobrir</p></header>
+<main>
+  <div id="lista" class="lista"></div>
+</main>
+<footer>🎅 Feliz Natal!<br>Desenvolvido por <b>Ulla Shelzia</b></footer>
+
+<div id="modal" hidden><div class="card">
+  <div id="p1">
+    <h2>Confirma o teu nome</h2>
+    <p>Tu és mesmo</p><p class="nome" id="nome1"></p>
+    <div class="linha"><button class="btn sec" onclick="fechar()">Não sou</button><button class="btn" onclick="passo(2)">Sim, sou eu</button></div>
+  </div>
+  <div id="p2" hidden>
+    <h2>Introduz o teu PIN</h2>
+    <p>O PIN de 4 dígitos que recebeste em privado.</p>
+    <input id="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="PIN">
+    <p class="erro" id="erro" role="alert"></p>
+    <div class="linha"><button class="btn sec" onclick="fechar()">Cancelar</button><button class="btn" onclick="revelar()">Ver</button></div>
+  </div>
+  <div id="p3" hidden>
+    <p>O teu amigo oculto é</p>
+    <div id="res"></div>
+    <p>🤫 Não mostres a ninguém!</p>
+    <div class="linha"><button class="btn" onclick="fechar()">Fechar e esconder</button></div>
+  </div>
+</div></div>
+
+<script src="comum.js"></script>
+<script src="dados.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+let atual=null;
+const lista=$('#lista');
+if(!DADOS.length)lista.textContent='O sorteio ainda não foi feito.';
+DADOS.forEach((p,k)=>{const b=document.createElement('button');b.textContent=p.n;b.onclick=()=>abrir(k);lista.append(b)});
+function passo(n){['p1','p2','p3'].forEach((id,i)=>$('#'+id).hidden=(i!==n-1));$('#modal').hidden=false;if(n===2)setTimeout(()=>$('#pin').focus(),50)}
+function abrir(k){atual=k;$('#nome1').textContent=DADOS[k].n;$('#pin').value='';$('#erro').textContent='';passo(1)}
+function fechar(){$('#modal').hidden=true;$('#res').textContent='';$('#pin').value='';atual=null}
+async function revelar(){
+  const p=DADOS[atual],pin=$('#pin').value;
+  if(pin.length!==4){$('#erro').textContent='O PIN tem 4 dígitos.';return}
+  try{
+    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(p.s),iterations:100000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+    const t=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(p.i)},key,b64(p.c));
+    $('#res').textContent=new TextDecoder().decode(t);
+    passo(3);
+  }catch(e){$('#erro').textContent='PIN incorrecto. Tenta de novo.'}
+}
+</script>
+</body>
+</html>
